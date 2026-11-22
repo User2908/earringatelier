@@ -270,12 +270,17 @@
     margin-left:auto;flex-shrink:0;width:112px;height:30px;border:1px solid var(--line);border-radius:999px;
     background:var(--paper);color:var(--ink-soft);font-family:inherit;font-size:11.5px;font-weight:700;padding:0 6px;
   }
-  .inv-summary{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:14px;margin-bottom:14px;}
-  .inv-sum-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
-  .inv-sum-item{background:var(--cream);border:1px solid var(--line);border-radius:14px;padding:8px 10px;}
-  .inv-sum-item.wide{grid-column:1 / -1;}
-  .inv-sum-item .n{font-size:20px;font-weight:800;color:var(--ink);}
-  .inv-sum-item .l{font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;}
+  .inv-summary{
+    display:flex;align-items:center;gap:6px;background:var(--paper);border:1px solid var(--line);
+    border-radius:16px;padding:8px 8px 8px 12px;margin-bottom:12px;
+  }
+  .inv-sum-stat{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15;}
+  .inv-sum-stat b{font-size:15px;font-weight:800;color:var(--ink);white-space:nowrap;}
+  .inv-sum-stat span{font-size:9.5px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;}
+  .inv-export-btn{
+    flex-shrink:0;height:30px;padding:0 10px;border:1px solid var(--line);border-radius:999px;
+    background:var(--cream);color:var(--ink);font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer;
+  }
   .pay-chip{
     font-size:10.5px;font-weight:700;border-radius:9px;padding:5px 8px;border:none;cursor:pointer;
     white-space:nowrap;
@@ -381,6 +386,18 @@
   nav button.active{color:var(--terracotta-dark);background:var(--cream);}
   nav button .ic{display:block;font-size:17px;margin-bottom:2px;}
 
+  .sheet-modal{
+    position:fixed;inset:0;z-index:60;background:rgba(46,38,32,.45);display:flex;align-items:flex-end;justify-content:center;
+  }
+  .sheet-card{
+    width:100%;max-width:520px;box-sizing:border-box;background:var(--paper);border-radius:22px 22px 0 0;
+    padding:18px 18px calc(18px + env(safe-area-inset-bottom));
+  }
+  .sheet-title{font-size:16px;font-weight:800;color:var(--ink);margin-bottom:4px;}
+  .sheet-msg{font-size:12.5px;font-weight:700;color:var(--ink-soft);margin-bottom:10px;}
+  .sheet-steps{margin:0 0 14px;padding-left:18px;font-size:13px;color:var(--ink);line-height:1.7;}
+  .sheet-actions{display:flex;flex-direction:column;gap:6px;}
+  .sheet-actions .text-link{margin:0;}
   .toast{
     position:fixed;bottom:78px;left:50%;transform:translateX(-50%) translateY(10px);
     background:var(--ink);color:#fff;padding:9px 16px;border-radius:12px;font-size:12.5px;font-weight:600;
@@ -484,19 +501,31 @@
           <div class="row total"><span>Total</span><span id="sum-total">₹0</span></div>
           <div class="export-row">
             <button class="btn btn-secondary" id="copy-summary-btn">📋 Copy summary</button>
-            <button class="btn btn-primary" id="export-csv-btn">⬇ Export CSV</button>
+            <button class="btn btn-primary" id="export-csv-btn">📊 Google Sheets</button>
           </div>
         </div>
       </section>
 
       <section id="inventory-view">
         <div class="inv-summary">
-          <div class="inv-sum-grid">
-            <div class="inv-sum-item"><div class="n" id="inv-sum-pieces">0</div><div class="l">Total pieces</div></div>
-            <div class="inv-sum-item"><div class="n" id="inv-sum-designs">0</div><div class="l">Designs</div></div>
-            <div class="inv-sum-item wide"><div class="n" id="inv-sum-worth">₹0</div><div class="l">Stock worth (at selling price)</div></div>
-          </div>
-          <button class="btn btn-secondary" style="width:100%;" id="export-inv-btn">⬇ Export inventory to Excel</button>
+          <div class="inv-sum-stat"><b id="inv-sum-pieces">0</b><span>Pieces</span></div>
+          <div class="inv-sum-stat"><b id="inv-sum-designs">0</b><span>Designs</span></div>
+          <div class="inv-sum-stat"><b id="inv-sum-worth">₹0</b><span>Worth</span></div>
+          <button class="inv-export-btn" id="export-inv-btn" aria-label="Send inventory to Google Sheets" title="Send to Google Sheets">📊 Sheets</button>
+        </div>
+        <div class="search-wrap">
+          <span class="search-ic">🔍</span>
+          <input type="search" id="inv-search-input" placeholder="Search designs…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+        </div>
+        <div class="filter-row">
+          <div class="category-chip-row" id="inv-chip-row" style="display:none;"></div>
+          <select id="inv-sort-select" aria-label="Sort inventory" title="Sort">
+            <option value="az">↕ A → Z</option>
+            <option value="high">↕ Price: High</option>
+            <option value="low">↕ Price: Low</option>
+            <option value="new">↕ Newest</option>
+            <option value="old">↕ Oldest</option>
+          </select>
         </div>
         <div id="inv-list"></div>
         <div class="add-form">
@@ -555,6 +584,22 @@
     </nav>
   </div>
 
+  <div class="sheet-modal" id="sheet-modal" style="display:none;">
+    <div class="sheet-card">
+      <div class="sheet-title" id="sheet-title">Send to Google Sheets</div>
+      <div class="sheet-msg" id="sheet-msg"></div>
+      <ol class="sheet-steps">
+        <li>Tap <b>Open Google Sheets</b> (a blank sheet opens)</li>
+        <li>Tap cell <b>A1</b>, then <b>Paste</b></li>
+      </ol>
+      <div class="sheet-actions">
+        <a class="btn btn-primary" id="sheet-open-link" href="https://sheets.new" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none;box-sizing:border-box;">📊 Open Google Sheets</a>
+        <button class="btn btn-secondary" id="sheet-copy-btn" style="width:100%;">📋 Copy data again</button>
+        <button class="text-link" id="sheet-csv-btn">Download as a file instead</button>
+        <button class="text-link" id="sheet-close-btn">Close</button>
+      </div>
+    </div>
+  </div>
   <div class="toast" id="toast"></div>
 </div>
 
@@ -1236,6 +1281,70 @@
       .replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
+  var invSearchQuery = "";
+  var invSelectedCategory = null;
+  var INV_SORT_KEY = "earringAtelierInvSort";
+  var invSortMode = "az";
+  try {
+    var savedInvSort = localStorage.getItem(INV_SORT_KEY);
+    if (["az","high","low","new","old"].indexOf(savedInvSort) !== -1) invSortMode = savedInvSort;
+  } catch(e){}
+
+  var invSortSelectEl = document.getElementById("inv-sort-select");
+  invSortSelectEl.value = invSortMode;
+  invSortSelectEl.addEventListener("change", function(){
+    invSortMode = invSortSelectEl.value;
+    try { localStorage.setItem(INV_SORT_KEY, invSortMode); } catch(e){}
+    renderInventory();
+  });
+
+  var invSearchInputEl = document.getElementById("inv-search-input");
+  invSearchInputEl.addEventListener("input", function(){
+    invSearchQuery = invSearchInputEl.value;
+    renderInventory();
+  });
+  invSearchInputEl.addEventListener("keydown", function(e){
+    if (e.key === "Enter"){ e.preventDefault(); invSearchInputEl.blur(); }
+  });
+
+  function renderInvCategoryChips(){
+    var row = document.getElementById("inv-chip-row");
+    var cats = [];
+    state.inventory.forEach(function(i){
+      if (i.category && cats.indexOf(i.category) === -1) cats.push(i.category);
+    });
+    cats.sort();
+    if (invSelectedCategory && cats.indexOf(invSelectedCategory) === -1) invSelectedCategory = null;
+    if (cats.length === 0){
+      row.style.display = "none";
+      row.innerHTML = "";
+      return;
+    }
+    row.style.display = "flex";
+    row.innerHTML = "";
+    var makeChip = function(label, value){
+      var chip = document.createElement("button");
+      chip.className = "cat-chip" + (invSelectedCategory === value ? " active" : "");
+      chip.textContent = label;
+      chip.addEventListener("click", function(){ invSelectedCategory = value; renderInventory(); });
+      row.appendChild(chip);
+    };
+    makeChip("All", null);
+    cats.forEach(function(c){ makeChip(c, c); });
+  }
+
+  function getVisibleInventory(){
+    var q = invSearchQuery.trim().toLowerCase();
+    return state.inventory.filter(function(i){
+      if (invSelectedCategory && i.category !== invSelectedCategory) return false;
+      if (q){
+        var hay = (String(i.name || "") + " " + String(i.category || "")).toLowerCase();
+        if (hay.indexOf(q) === -1) return false;
+      }
+      return true;
+    }).sort(sortComparator(invSortMode));
+  }
+
   function renderInventorySummary(){
     var pieces = 0, worth = 0;
     state.inventory.forEach(function(i){
@@ -1254,6 +1363,79 @@
     return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
   }
 
+  // ---------- Google Sheets hand-off (copy as tab-separated, paste into a new sheet) ----------
+  var sheetPending = null;
+
+  function tsvCell(c){
+    if (c === null || c === undefined) return "";
+    var t = String(c);
+    return /[\t\n\r"]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  }
+  function rowsToTsv(rows){
+    return rows.map(function(r){ return r.map(tsvCell).join("\t"); }).join("\n");
+  }
+  function legacyCopy(text){
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { ta.setSelectionRange(0, text.length); } catch(e){}
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch(e){}
+    document.body.removeChild(ta);
+    return ok;
+  }
+  function copyTextToClipboard(text, cb){
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){ cb(true); }, function(){ cb(legacyCopy(text)); });
+    } else {
+      cb(legacyCopy(text));
+    }
+  }
+  function copySheetData(){
+    if (!sheetPending) return;
+    var msg = document.getElementById("sheet-msg");
+    copyTextToClipboard(rowsToTsv(sheetPending.rows), function(ok){
+      msg.textContent = ok
+        ? "✓ " + sheetPending.label + " copied (" + sheetPending.rows.length + " rows)"
+        : "Couldn't copy automatically — tap “Copy data again”";
+    });
+  }
+  function showSheetsExport(rows, fileName, label){
+    sheetPending = {rows: rows, fileName: fileName, label: label};
+    document.getElementById("sheet-msg").textContent = "Copying…";
+    document.getElementById("sheet-modal").style.display = "flex";
+    copySheetData();
+  }
+  function closeSheetModal(){
+    document.getElementById("sheet-modal").style.display = "none";
+  }
+  function downloadRowsAsCsv(rows, fileName){
+    var csv = "\uFEFF" + rows.map(function(r){ return r.map(csvCell).join(","); }).join("\r\n");
+    var blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = fileName + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  document.getElementById("sheet-copy-btn").addEventListener("click", copySheetData);
+  document.getElementById("sheet-close-btn").addEventListener("click", closeSheetModal);
+  document.getElementById("sheet-modal").addEventListener("click", function(e){
+    if (e.target === this) closeSheetModal();
+  });
+  document.getElementById("sheet-csv-btn").addEventListener("click", function(){
+    if (!sheetPending) return;
+    downloadRowsAsCsv(sheetPending.rows, sheetPending.fileName);
+    showToast("File downloaded");
+  });
+
   document.getElementById("export-inv-btn").addEventListener("click", function(){
     if (state.inventory.length === 0){ showToast("No inventory to export"); return; }
     var items = state.inventory.slice().sort(function(a, b){
@@ -1268,24 +1450,15 @@
     });
     rows.push([]);
     rows.push(["TOTAL", "", "", pieces, worth]);
-    var csv = "\uFEFF" + rows.map(function(r){ return r.map(csvCell).join(","); }).join("\r\n");
-    var blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
     var d = new Date();
     var stamp = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
-    a.href = url;
-    a.download = "earring-atelier-inventory-" + stamp + ".csv";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast("Inventory file downloaded");
+    showSheetsExport(rows, "earring-atelier-inventory-" + stamp, "Inventory");
   });
 
   var invRenderPending = false;
   function renderInventory(){
     renderInventorySummary();
+    renderInvCategoryChips();
     var active = document.activeElement;
     if (active && active.tagName === "INPUT" && el.invList.contains(active)){
       invRenderPending = true;
@@ -1293,7 +1466,17 @@
     }
     invRenderPending = false;
     el.invList.innerHTML = "";
-    state.inventory.forEach(function(item){
+    var visibleItems = getVisibleInventory();
+    if (visibleItems.length === 0 && state.inventory.length > 0){
+      var emptyNote = document.createElement("div");
+      emptyNote.className = "empty-note";
+      emptyNote.style.padding = "24px 20px";
+      emptyNote.textContent = invSearchQuery.trim()
+        ? "No designs match “" + invSearchQuery.trim() + "”."
+        : "No designs in this category.";
+      el.invList.appendChild(emptyNote);
+    }
+    visibleItems.forEach(function(item){
       var card = document.createElement("div");
       card.className = "inv-card";
       var thumbHtml = item.photo
@@ -1415,20 +1598,8 @@
     var t = computeTotals(state.viewSales);
     rows.push([]);
     rows.push(["", "", "", "", "", "TOTAL", t.total]);
-    var csv = rows.map(function(r){
-      return r.map(function(c){ return typeof c === "string" && c.indexOf(",") > -1 ? '"' + c + '"' : c; }).join(",");
-    }).join("\n");
-    var blob = new Blob([csv], {type:"text/csv"});
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
     var fileLabel = label ? ("-" + label.toLowerCase().replace(/[^a-z0-9]+/g,"-")) : "";
-    a.href = url;
-    a.download = "earring-atelier-sales-" + dateKey + fileLabel + ".csv";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast("CSV downloaded");
+    showSheetsExport(rows, "earring-atelier-sales-" + dateKey + fileLabel, "Sales");
   });
 
   document.getElementById("copy-summary-btn").addEventListener("click", function(){
