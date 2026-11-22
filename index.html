@@ -256,12 +256,26 @@
   .qty-stepper .stock-input::-webkit-outer-spin-button,
   .qty-stepper .stock-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
   .qty-stepper .stock-input:focus{outline:2px solid var(--ink-soft);outline-offset:0;}
-  .sort-row{display:flex;align-items:center;gap:8px;margin:0 0 10px;}
-  .sort-row label{font-size:11.5px;font-weight:700;color:var(--ink-soft);}
-  .sort-row select{
-    flex:1;max-width:220px;height:32px;border:1px solid var(--cream);border-radius:10px;
-    background:var(--paper);color:var(--ink);font-family:inherit;font-size:12.5px;font-weight:600;padding:0 8px;
+  .search-wrap{position:relative;margin:0 0 10px;}
+  .search-wrap input{
+    width:100%;box-sizing:border-box;height:40px;border:1px solid var(--line);border-radius:14px;
+    background:var(--paper);color:var(--ink);font-family:inherit;font-size:14px;font-weight:600;padding:0 14px 0 38px;
+    -webkit-appearance:none;appearance:none;
   }
+  .search-wrap input:focus{outline:2px solid var(--ink-soft);outline-offset:0;}
+  .search-wrap .search-ic{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:14px;opacity:.55;pointer-events:none;}
+  .filter-row{display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+  .filter-row .category-chip-row{flex:1;min-width:0;margin-bottom:0;}
+  .filter-row select{
+    margin-left:auto;flex-shrink:0;width:112px;height:30px;border:1px solid var(--line);border-radius:999px;
+    background:var(--paper);color:var(--ink-soft);font-family:inherit;font-size:11.5px;font-weight:700;padding:0 6px;
+  }
+  .inv-summary{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:14px;margin-bottom:14px;}
+  .inv-sum-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
+  .inv-sum-item{background:var(--cream);border:1px solid var(--line);border-radius:14px;padding:8px 10px;}
+  .inv-sum-item.wide{grid-column:1 / -1;}
+  .inv-sum-item .n{font-size:20px;font-weight:800;color:var(--ink);}
+  .inv-sum-item .l{font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;}
   .pay-chip{
     font-size:10.5px;font-weight:700;border-radius:9px;padding:5px 8px;border:none;cursor:pointer;
     white-space:nowrap;
@@ -422,18 +436,21 @@
 
     <main>
       <section id="sell-view" class="active">
-        <div class="sort-row">
-          <label for="sort-select">Sort</label>
-          <select id="sort-select">
-            <option value="best">🔥 Best sellers</option>
-            <option value="az">Name: A → Z</option>
-            <option value="new">Newest first</option>
-            <option value="old">Oldest first</option>
-            <option value="high">Price: high to low</option>
-            <option value="low">Price: low to high</option>
+        <div class="search-wrap">
+          <span class="search-ic">🔍</span>
+          <input type="search" id="search-input" placeholder="Search earrings…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+        </div>
+        <div class="filter-row">
+        <div class="category-chip-row" id="category-chip-row" style="display:none;"></div>
+          <select id="sort-select" aria-label="Sort designs" title="Sort">
+            <option value="best">↕ Best sellers</option>
+            <option value="az">↕ A → Z</option>
+            <option value="high">↕ Price: High</option>
+            <option value="low">↕ Price: Low</option>
+            <option value="new">↕ Newest</option>
+            <option value="old">↕ Oldest</option>
           </select>
         </div>
-        <div class="category-chip-row" id="category-chip-row" style="display:none;"></div>
         <div id="best-sellers-block">
           <div class="section-title" id="best-sellers-title" style="display:none;margin-top:0;">🔥 Best Sellers</div>
           <div class="swatch-grid" id="best-sellers-grid"></div>
@@ -473,6 +490,14 @@
       </section>
 
       <section id="inventory-view">
+        <div class="inv-summary">
+          <div class="inv-sum-grid">
+            <div class="inv-sum-item"><div class="n" id="inv-sum-pieces">0</div><div class="l">Total pieces</div></div>
+            <div class="inv-sum-item"><div class="n" id="inv-sum-designs">0</div><div class="l">Designs</div></div>
+            <div class="inv-sum-item wide"><div class="n" id="inv-sum-worth">₹0</div><div class="l">Stock worth (at selling price)</div></div>
+          </div>
+          <button class="btn btn-secondary" style="width:100%;" id="export-inv-btn">⬇ Export inventory to Excel</button>
+        </div>
         <div id="inv-list"></div>
         <div class="add-form">
           <h3>+ Add a new design</h3>
@@ -906,6 +931,7 @@
     return addTile;
   }
 
+  var searchQuery = "";
   var SORT_KEY = "earringAtelierSort";
   var sortMode = "best";
   try {
@@ -925,6 +951,15 @@
     return byName;
   }
 
+  var searchInputEl = document.getElementById("search-input");
+  searchInputEl.addEventListener("input", function(){
+    searchQuery = searchInputEl.value;
+    renderGrid();
+  });
+  searchInputEl.addEventListener("keydown", function(e){
+    if (e.key === "Enter"){ e.preventDefault(); searchInputEl.blur(); }
+  });
+
   var sortSelectEl = document.getElementById("sort-select");
   sortSelectEl.value = sortMode;
   sortSelectEl.addEventListener("change", function(){
@@ -935,8 +970,14 @@
 
   function renderGrid(){
     var soldCounts = computeSoldCounts();
+    var q = searchQuery.trim().toLowerCase();
     var filtered = state.inventory.filter(function(i){
-      return !selectedCategory || i.category === selectedCategory;
+      if (selectedCategory && i.category !== selectedCategory) return false;
+      if (q){
+        var hay = (String(i.name || "") + " " + String(i.category || "")).toLowerCase();
+        if (hay.indexOf(q) === -1) return false;
+      }
+      return true;
     });
     var inStockAll = filtered.filter(function(i){ return (i.stock || 0) > 0; });
     var outOfStockItems = filtered.filter(function(i){ return (i.stock || 0) <= 0; });
@@ -948,7 +989,8 @@
     } else {
       inStockAll.sort(function(a, b){ return (soldCounts[b.id] || 0) - (soldCounts[a.id] || 0); });
     }
-    var hasAnySales = !customSort && inStockAll.some(function(i){ return (soldCounts[i.id] || 0) > 0; });
+    var flatList = customSort || !!q;
+    var hasAnySales = !flatList && inStockAll.some(function(i){ return (soldCounts[i.id] || 0) > 0; });
 
     var bestItems = hasAnySales ? inStockAll.filter(function(i){ return (soldCounts[i.id] || 0) > 0; }) : inStockAll;
     var otherItems = hasAnySales ? inStockAll.filter(function(i){ return (soldCounts[i.id] || 0) === 0; }) : [];
@@ -979,7 +1021,7 @@
       note.className = "empty-note";
       note.textContent = state.inventory.length === 0
         ? "No designs yet — add your first earring design in the Inventory tab."
-        : "No designs in this category.";
+        : (q ? "No designs match “" + searchQuery.trim() + "”." : "No designs in this category.");
       bestGrid.appendChild(note);
       document.getElementById("best-sellers-title").style.display = "none";
     }
@@ -1194,8 +1236,56 @@
       .replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
+  function renderInventorySummary(){
+    var pieces = 0, worth = 0;
+    state.inventory.forEach(function(i){
+      var st = Math.max(0, i.stock || 0);
+      pieces += st;
+      worth += st * (i.price || 0);
+    });
+    document.getElementById("inv-sum-pieces").textContent = pieces;
+    document.getElementById("inv-sum-designs").textContent = state.inventory.length;
+    document.getElementById("inv-sum-worth").textContent = "₹" + worth.toLocaleString("en-IN");
+  }
+
+  function csvCell(c){
+    if (c === null || c === undefined) return "";
+    var t = String(c);
+    return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  }
+
+  document.getElementById("export-inv-btn").addEventListener("click", function(){
+    if (state.inventory.length === 0){ showToast("No inventory to export"); return; }
+    var items = state.inventory.slice().sort(function(a, b){
+      return String(a.name || "").localeCompare(String(b.name || ""), undefined, {sensitivity:"base", numeric:true});
+    });
+    var rows = [["Design","Category","Price (₹)","Stock","Stock worth (₹)"]];
+    var pieces = 0, worth = 0;
+    items.forEach(function(i){
+      var st = Math.max(0, i.stock || 0), pr = i.price || 0;
+      pieces += st; worth += st * pr;
+      rows.push([i.name || "", i.category || "", pr, st, st * pr]);
+    });
+    rows.push([]);
+    rows.push(["TOTAL", "", "", pieces, worth]);
+    var csv = "\uFEFF" + rows.map(function(r){ return r.map(csvCell).join(","); }).join("\r\n");
+    var blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    var d = new Date();
+    var stamp = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    a.href = url;
+    a.download = "earring-atelier-inventory-" + stamp + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Inventory file downloaded");
+  });
+
   var invRenderPending = false;
   function renderInventory(){
+    renderInventorySummary();
     var active = document.activeElement;
     if (active && active.tagName === "INPUT" && el.invList.contains(active)){
       invRenderPending = true;
