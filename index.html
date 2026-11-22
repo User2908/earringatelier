@@ -248,6 +248,20 @@
     font-size:13px;font-weight:800;color:var(--ink);cursor:pointer;
   }
   .qty-stepper span{font-size:12.5px;font-weight:700;min-width:14px;text-align:center;}
+  .qty-stepper .stock-input{
+    width:44px;height:22px;border:none;border-radius:7px;background:var(--paper);
+    font-family:inherit;font-size:12.5px;font-weight:700;color:var(--ink);text-align:center;
+    padding:0;margin:0;-moz-appearance:textfield;appearance:textfield;
+  }
+  .qty-stepper .stock-input::-webkit-outer-spin-button,
+  .qty-stepper .stock-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  .qty-stepper .stock-input:focus{outline:2px solid var(--ink-soft);outline-offset:0;}
+  .sort-row{display:flex;align-items:center;gap:8px;margin:0 0 10px;}
+  .sort-row label{font-size:11.5px;font-weight:700;color:var(--ink-soft);}
+  .sort-row select{
+    flex:1;max-width:220px;height:32px;border:1px solid var(--cream);border-radius:10px;
+    background:var(--paper);color:var(--ink);font-family:inherit;font-size:12.5px;font-weight:600;padding:0 8px;
+  }
   .pay-chip{
     font-size:10.5px;font-weight:700;border-radius:9px;padding:5px 8px;border:none;cursor:pointer;
     white-space:nowrap;
@@ -408,6 +422,17 @@
 
     <main>
       <section id="sell-view" class="active">
+        <div class="sort-row">
+          <label for="sort-select">Sort</label>
+          <select id="sort-select">
+            <option value="best">🔥 Best sellers</option>
+            <option value="az">Name: A → Z</option>
+            <option value="new">Newest first</option>
+            <option value="old">Oldest first</option>
+            <option value="high">Price: high to low</option>
+            <option value="low">Price: low to high</option>
+          </select>
+        </div>
         <div class="category-chip-row" id="category-chip-row" style="display:none;"></div>
         <div id="best-sellers-block">
           <div class="section-title" id="best-sellers-title" style="display:none;margin-top:0;">🔥 Best Sellers</div>
@@ -881,6 +906,33 @@
     return addTile;
   }
 
+  var SORT_KEY = "earringAtelierSort";
+  var sortMode = "best";
+  try {
+    var savedSort = localStorage.getItem(SORT_KEY);
+    if (["best","az","new","old","high","low"].indexOf(savedSort) !== -1) sortMode = savedSort;
+  } catch(e){}
+
+  function sortComparator(mode){
+    var byName = function(a, b){
+      return String(a.name || "").localeCompare(String(b.name || ""), undefined, {sensitivity:"base", numeric:true});
+    };
+    if (mode === "az") return byName;
+    if (mode === "new") return function(a, b){ return ((b.createdAt || 0) - (a.createdAt || 0)) || byName(a, b); };
+    if (mode === "old") return function(a, b){ return ((a.createdAt || 0) - (b.createdAt || 0)) || byName(a, b); };
+    if (mode === "high") return function(a, b){ return ((b.price || 0) - (a.price || 0)) || byName(a, b); };
+    if (mode === "low") return function(a, b){ return ((a.price || 0) - (b.price || 0)) || byName(a, b); };
+    return byName;
+  }
+
+  var sortSelectEl = document.getElementById("sort-select");
+  sortSelectEl.value = sortMode;
+  sortSelectEl.addEventListener("change", function(){
+    sortMode = sortSelectEl.value;
+    try { localStorage.setItem(SORT_KEY, sortMode); } catch(e){}
+    renderGrid();
+  });
+
   function renderGrid(){
     var soldCounts = computeSoldCounts();
     var filtered = state.inventory.filter(function(i){
@@ -889,8 +941,14 @@
     var inStockAll = filtered.filter(function(i){ return (i.stock || 0) > 0; });
     var outOfStockItems = filtered.filter(function(i){ return (i.stock || 0) <= 0; });
 
-    inStockAll.sort(function(a, b){ return (soldCounts[b.id] || 0) - (soldCounts[a.id] || 0); });
-    var hasAnySales = inStockAll.some(function(i){ return (soldCounts[i.id] || 0) > 0; });
+    var customSort = sortMode !== "best";
+    if (customSort){
+      inStockAll.sort(sortComparator(sortMode));
+      outOfStockItems.sort(sortComparator(sortMode));
+    } else {
+      inStockAll.sort(function(a, b){ return (soldCounts[b.id] || 0) - (soldCounts[a.id] || 0); });
+    }
+    var hasAnySales = !customSort && inStockAll.some(function(i){ return (soldCounts[i.id] || 0) > 0; });
 
     var bestItems = hasAnySales ? inStockAll.filter(function(i){ return (soldCounts[i.id] || 0) > 0; }) : inStockAll;
     var otherItems = hasAnySales ? inStockAll.filter(function(i){ return (soldCounts[i.id] || 0) === 0; }) : [];
@@ -1136,7 +1194,14 @@
       .replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
+  var invRenderPending = false;
   function renderInventory(){
+    var active = document.activeElement;
+    if (active && active.tagName === "INPUT" && el.invList.contains(active)){
+      invRenderPending = true;
+      return;
+    }
+    invRenderPending = false;
     el.invList.innerHTML = "";
     state.inventory.forEach(function(item){
       var card = document.createElement("div");
@@ -1162,7 +1227,7 @@
         '<div class="inv-card-bottom">' +
           '<div class="inv-price-wrap">₹<input class="inv-price-input" type="number" value="' + item.price + '"></div>' +
           '<div class="qty-stepper">' +
-            '<button class="stock-minus">−</button><span class="stock-count">' + (item.stock || 0) + '</span><button class="stock-plus">+</button>' +
+            '<button class="stock-minus">−</button><input class="stock-input" type="number" inputmode="numeric" min="0" step="1" value="' + (item.stock || 0) + '"><button class="stock-plus">+</button>' +
           '</div>' +
         '</div>';
 
@@ -1195,6 +1260,17 @@
       card.querySelector(".stock-plus").addEventListener("click", function(){
         db.collection("inventory").doc(item.id).update({stock: firebase.firestore.FieldValue.increment(1)});
       });
+      var stockInput = card.querySelector(".stock-input");
+      stockInput.addEventListener("focus", function(){ stockInput.select(); });
+      stockInput.addEventListener("keydown", function(e){
+        if (e.key === "Enter"){ e.preventDefault(); stockInput.blur(); }
+      });
+      stockInput.addEventListener("change", function(){
+        var v = parseInt(stockInput.value, 10);
+        if (isNaN(v) || v < 0){ stockInput.value = item.stock || 0; return; }
+        if (v === (item.stock || 0)) { stockInput.value = v; return; }
+        db.collection("inventory").doc(item.id).update({stock: v});
+      });
       card.querySelector(".del-btn").addEventListener("click", function(){
         if (!confirm('Remove "' + item.name + '" from inventory on all phones? Past sales stay in the log.')) return;
         db.collection("inventory").doc(item.id).delete();
@@ -1202,6 +1278,10 @@
       el.invList.appendChild(card);
     });
   }
+
+  el.invList.addEventListener("focusout", function(){
+    setTimeout(function(){ if (invRenderPending) renderInventory(); }, 0);
+  });
 
   document.getElementById("add-item-btn").addEventListener("click", function(){
     var name = document.getElementById("new-name").value.trim();
@@ -1217,7 +1297,8 @@
       category: category || null,
       price: price,
       stock: isNaN(stock) ? 0 : stock,
-      photo: pendingNewPhoto || null
+      photo: pendingNewPhoto || null,
+      createdAt: Date.now()
     });
     document.getElementById("new-name").value = "";
     document.getElementById("new-category").value = "";
